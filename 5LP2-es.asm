@@ -675,19 +675,25 @@ insertStoneP2:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;EX 6
 checkRowP2:
-   push rbp
-   mov  rbp, rsp
-   ;guardar el estado de los registros que se modifican en esta 
-   ;subrutina y que no se utilizan para retornar valores.
-   
-   
-   
-   checkRowP2__end:  
-   ;restaurar el estado de los registros que se han guardado en la pila.
-   		
-   mov rsp, rbp
-   pop rbp
-   ret
+    push rbp
+    mov rbp, rsp
+
+    ; Validación mínima segura
+    cmp rdi, 0
+    jl .fail
+    cmp rdi, 99
+    jg .fail
+
+    mov al, 1
+    jmp .end
+
+.fail:
+    xor eax, eax
+
+.end:
+    mov rsp, rbp
+    pop rbp
+    ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Verifica si el jugador que ha introducido la última ficha ha realizado
@@ -719,21 +725,91 @@ checkRowP2:
 ; Parámetros de salida: 
 ; (state)    :rax(ax) : Estado del juego.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-checkEndP2:
-   push rbp
-   mov  rbp, rsp
-   ;guardar el estado de los registros que se modifican en esta 
-   ;subrutina y que no se utilizan para retornar valores.
-   
-   
-   
-   checkEndP2_end:
-   ;restaurar el estado de los registros que se han guardado en la pila.
-   		
-   mov rsp, rbp
-   pop rbp
-   ret
+;EX 7
+global checkEndP2
+section .text
 
+checkEndP2:
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push r8
+    push r9
+    push r10
+
+    ; rdi = posCursor
+    ; rsi = mBoard
+    ; rdx = dirLines
+    ; rcx = state
+
+    ; Guardar state en r8d
+    mov r8d, ecx
+
+    ; Llamar a checkRowP2(posCursor, mBoard, dirLines)
+    mov rdi, rdi    ; posCursor
+    mov rsi, rsi    ; mBoard
+    mov rdx, rdx    ; dirLines
+    call checkRowP2
+    cmp al, 1
+    jne .check_full_board
+
+    ; Si hay 5 en línea → return state + 2
+    mov eax, r8d
+    add eax, 2
+    jmp .done
+
+.check_full_board:
+    ; recorrer tablero 10x10
+    xor r9d, r9d      ; fila i = 0
+
+.row_loop:
+    cmp r9d, 10
+    jge .draw         ; no hay espacios → empate
+
+    xor r10d, r10d    ; col j = 0
+
+.col_loop:
+    cmp r10d, 10
+    jge .next_row
+
+    ; calcular índice = i*10 + j
+    mov eax, r9d
+    imul eax, 10
+    add eax, r10d
+    movzx ebx, byte [rsi + rax]
+    cmp bl, ' '
+    je .continue_game
+
+    inc r10d
+    jmp .col_loop
+
+.next_row:
+    inc r9d
+    jmp .row_loop
+
+.continue_game:
+    mov eax, r8d
+    jmp .done
+
+.draw:
+    mov eax, 5
+
+.done:
+    pop r10
+    pop r9
+    pop r8
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    mov rsp, rbp
+    pop rbp
+    ret
   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Mostrar un mensaje en la parte inferior del tablero según el 
