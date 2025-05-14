@@ -1,7 +1,7 @@
 section .note.GNU-stack noalloc noexec nowrite progbits
 section .data               
 ;Cambiar Nombre y Apellido por vuestros datos.
-developer db "_Nombre_ _Apellido_",0
+developer db "Angel Torres",0
 
 ;Constante que también está definida en C.
 DIMMATRIX equ 10
@@ -240,22 +240,52 @@ getchP2:
 ; Parámetros de salida: 
 ; Ninguno.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;EX1 - Se ajustará el código de PR1 para que responda a posCurBOardP2.
+;(En la medida de lo posible) 
+section .text
+; Subrutina posCurBoardP2
+; Posiciona el cursor en el tablero según posCursor (en rdi).
+; Fórmulas: rowScreen = 7 + (posCursor / DIMMATRIX) * 2
+;           colScreen = 8 + (posCursor % DIMMATRIX) * 4
+; Llama a gotoxyP2 para posicionar el cursor.
 posCurBoardP2:
-   push rbp
-   mov  rbp, rsp
-   ;guardar el estado de los registros que se modifican en esta 
-   ;subrutina y que no se utilizan para retornar valores.
-   
-   
-   
-   posCurBoardP2_end:  
-   ;restaurar el estado de los registros que se han guardado en la pila.
-   
-   mov rsp, rbp
-   pop rbp
-   ret
+   push rbp                 ; Guardamos registro base en pila
+   mov  rbp, rsp            ; rbp = rsp
+   ; Guardar registros que se modifican
+   push rax                 ; Guardamos rax (usado para cálculos)
+   push rbx                 ; Guardamos rbx (para DIMMATRIX)
+   push rdx                 ; Guardamos rdx (para resto de división)
 
+   ; Cargar posCursor desde rdi
+   mov rax, rdi             ; rax = posCursor
 
+   ; Calcular rowScreen = 7 + (posCursor / DIMMATRIX) * 2
+   mov rbx, DIMMATRIX       ; rbx = DIMMATRIX (10)
+   xor rdx, rdx             ; Limpiar rdx para división
+   div rbx                  ; rax = posCursor / DIMMATRIX, rdx = posCursor % DIMMATRIX
+   shl rax, 1               ; rax = (posCursor / DIMMATRIX) * 2
+   add rax, 7               ; rax = 7 + (posCursor / DIMMATRIX) * 2
+   mov rbx, rax             ; Guardar rowScreen en rbx temporalmente
+
+   ; Calcular colScreen = 8 + (posCursor % DIMMATRIX) * 4
+   mov rax, rdx             ; rax = posCursor % DIMMATRIX
+   shl rax, 2               ; rax = (posCursor % DIMMATRIX) * 4
+   add rax, 8               ; rax = 8 + (posCursor % DIMMATRIX) * 4
+
+   ; Preparar parámetros para gotoxyP2
+   mov rdi, rbx             ; rdi = rowScreen (primer parámetro)
+   mov rsi, rax             ; rsi = colScreen (segundo parámetro)
+   call gotoxyP2            ; Llamar a gotoxyP2 para posicionar el cursor
+
+posCurBoardP2_end:
+   ; Restaurar registros
+   pop rdx                  ; Restaurar rdx
+   pop rbx                  ; Restaurar rbx
+   pop rax                  ; Restaurar rax
+   mov rsp, rbp             ; Restaurar rsp
+   pop rbp                  ; Restaurar rbp
+   ret                      ; Retornar
+;funcional
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Muestra en el tablero el símbolo del jugador (stoneSymbol) de la ficha
 ; jugada en la posición actual del cursor (posCursor).
@@ -274,21 +304,25 @@ posCurBoardP2:
 ; Parámetros de salida: 
 ; Ninguno.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;EX 2
 showStonePosP2:
    push rbp
    mov  rbp, rsp
-   ;guardar el estado de los registros que se modifican en esta 
-   ;subrutina y que no se utilizan para retornar valores.
-   
-   
-   
-   showStonePosP2_end:  
-   ;restaurar el estado de los registros que se han guardado en la pila.
-  
+   push rax
+   push rbx
+
+   ; rdi = posCursor, rsi = mBoard
+   mov rbx, rsi
+   mov rax, rdi
+   mov al, [rbx + rax]  ; cargar símbolo mBoard[posCursor] en al
+   mov dil, al
+   call printchP2
+
+   pop rbx
+   pop rax
    mov rsp, rbp
    pop rbp
    ret
- 
  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Actualizar la posición donde está el cursor (posCursor) según
@@ -309,20 +343,80 @@ showStonePosP2:
 ; Parámetros de salida: 
 ; (posCursor):rax(rax): Posición del cursor dentro de la matriz mBoard.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;EX 3
+
+global moveCursorP2
+section .text
+
 moveCursorP2:
-   push rbp
-   mov  rbp, rsp
-   ;guardar el estado de los registros que se modifican en esta 
-   ;subrutina y que no se utilizan para retornar valores.
-   
-   
-   
-   moveCursorP2_end:
-   ;restaurar el estado de los registros que se han guardado en la pila.
-   	
-   mov rsp, rbp
-   pop rbp
-   ret
+    push rbp
+    mov  rbp, rsp
+    push rbx
+    push rcx
+    push rdx
+
+    ; rdi = posCursor
+    ; sil = charac
+
+    ; Obtener fila y columna: row = rdi / 10, col = rdi % 10
+    mov rax, rdi
+    mov rbx, 10
+    xor rdx, rdx
+    div rbx            ; rax = row, rdx = col
+    mov r8, rax        ; r8 = row
+    mov r9, rdx        ; r9 = col
+
+    ; Obtener charac en cl
+    movzx rcx, sil     ; cl = charac
+
+    ; Mover según la tecla presionada
+    cmp cl, 'i'
+    jne .check_j
+    cmp r8, 0
+    je .ret_original
+    dec r8
+    jmp .recalculate
+
+.check_j:
+    cmp cl, 'j'
+    jne .check_k
+    cmp r9, 0
+    je .ret_original
+    dec r9
+    jmp .recalculate
+
+.check_k:
+    cmp cl, 'k'
+    jne .check_l
+    cmp r8, 9
+    jge .ret_original
+    inc r8
+    jmp .recalculate
+
+.check_l:
+    cmp cl, 'l'
+    jne .ret_original
+    cmp r9, 9
+    jge .ret_original
+    inc r9
+
+.recalculate:
+    ; posCursor = row * 10 + col
+    mov rax, r8
+    imul rax, 10
+    add rax, r9
+    jmp .done
+
+.ret_original:
+    mov rax, rdi
+
+.done:
+    pop rdx
+    pop rcx
+    pop rbx
+    mov rsp, rbp
+    pop rbp
+    ret
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -357,20 +451,78 @@ moveCursorP2:
 ; Parámetros de salida: 
 ; (neighbors):rax(eax): Indica cuantas casillas ocupadas hay alrededor de la posición actual.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;EX 4;
+global checkAroundP2
+section .text
+
 checkAroundP2:
-   push rbp
-   mov  rbp, rsp
-   ;guardar el estado de los registros que se modifican en esta 
-   ;subrutina y que no se utilizan para retornar valores.
-   
-   
-   
-   checkAroundP2_end:
-   ;restaurar el estado de los registros que se han guardado en la pila.
-   
-   mov rsp, rbp
-   pop rbp
-   ret
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
+
+    ; Guardamos parámetros
+    mov r14, rdi       ; r14 = posCursor
+    mov r15, rsi       ; r15 = mBoard
+    mov r13, rdx       ; r13 = dirLines
+
+    xor r12d, r12d     ; contador de vecinos = 0
+    xor ecx, ecx       ; índice dirLines: 0 a 7
+
+.loop_dirs:
+    cmp ecx, 8
+    jge .end_loop
+
+    ; offset = dirLines[ecx]
+    mov rbx, [r13 + rcx*8]
+    add rbx, r14           ; nextPos = posCursor + offset
+
+    ; nextRow = nextPos / 10
+    ; nextCol = nextPos % 10
+    mov rdx, 0
+    mov rax, rbx
+    mov r8, 10
+    div r8
+    mov r9, rax            ; r9 = nextRow
+    mov r10, rdx           ; r10 = nextCol
+
+    ; Validar 0 ≤ nextRow, nextCol < 10
+    cmp r9, 0
+    jl .skip
+    cmp r9, 10
+    jge .skip
+    cmp r10, 0
+    jl .skip
+    cmp r10, 10
+    jge .skip
+
+    ; Acceso: mBoard[nextRow][nextCol]
+    mov rax, r9
+    imul rax, 10
+    add rax, r10
+    movzx ebx, byte [r15 + rax]
+    cmp bl, ' '
+    je .skip
+
+    inc r12d              ; vecinos++
+
+.skip:
+    inc ecx
+    jmp .loop_dirs
+
+.end_loop:
+    mov eax, r12d         ; retorno = número de vecinos
+
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    pop rbp
+    ret
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -402,21 +554,72 @@ checkAroundP2:
 ; Parámetros de salida: 
 ; (state) :rax(ax): Estat del joc.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;EX5
+global insertStoneP2
+%define STONE_X 'X'
+%define STONE_O 'O'
+%define DIMMATRIX 10
+
+section .text
+
 insertStoneP2:
-   push rbp
-   mov  rbp, rsp
-   ;guardar el estado de los registros que se modifican en esta 
-   ;subrutina y que no se utilizan para retornar valores.	
-   
-   
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push r12
+    push r13
+    push r14
+    push r15
 
-   insertStoneP2_end:
-   ;restaurar el estado de los registros que se han guardado en la pila.
-  		
-   mov rsp, rbp
-   pop rbp
-   ret
+    ; rdi = posCursor
+    ; rsi = mBoard
+    ; rdx = dirLines
+    ; rcx = state
 
+    mov r12, rdi       ; posCursor
+    mov r13, rsi       ; mBoard
+    mov r14, rdx       ; dirLines
+    mov r15d, ecx      ; state
+
+    ; leer mBoard[posCursor]
+    movzx eax, byte [r13 + r12]
+    cmp al, ' '
+    jne .return_state
+
+    ; llamar a checkAroundP2(posCursor, mBoard, dirLines)
+    mov rdi, r12
+    mov rsi, r13
+    mov rdx, r14
+    call checkAroundP2
+    cmp eax, 0
+    jle .return_state
+
+    ; insertar ficha según jugador
+    cmp r15d, 1
+    je .put_x
+    mov byte [r13 + r12], STONE_O
+    jmp .change_turn
+
+.put_x:
+    mov byte [r13 + r12], STONE_X
+
+.change_turn:
+    mov eax, 3
+    sub eax, r15d
+    jmp .done
+
+.return_state:
+    mov eax, r15d
+
+.done:
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbx
+    mov rsp, rbp
+    pop rbp
+    ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Comprobar si la ficha introducida, en la posición (posCursor)
@@ -470,6 +673,7 @@ insertStoneP2:
 ; Parámetros de salida: 
 ; (fiveINaRow):rax(al): Indica si hemos hecho 5 en raya (1) o no (0).
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;EX 6
 checkRowP2:
    push rbp
    mov  rbp, rsp
