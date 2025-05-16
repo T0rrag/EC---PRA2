@@ -305,6 +305,9 @@ posCurBoardP2_end:
 ; Ninguno.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;EX 2
+mov rdi, r10      ; posCursor
+mov rsi, r8       ; mBoard
+
 showStonePosP2:
    push rbp
    mov  rbp, rsp
@@ -576,25 +579,32 @@ insertStoneP2:
     ; rdx = dirLines
     ; rcx = state
 
+    ; Guardar parámetros
     mov r12, rdi       ; posCursor
     mov r13, rsi       ; mBoard
     mov r14, rdx       ; dirLines
     mov r15d, ecx      ; state
 
-    ; leer mBoard[posCursor]
+    ; Validar que posCursor ∈ [0, 99]
+    cmp r12, 0
+    jl .return_state
+    cmp r12, 99
+    jg .return_state
+
+    ; Leer mBoard[posCursor]
     movzx eax, byte [r13 + r12]
     cmp al, ' '
-    jne .return_state
+    jne .return_state   ; ya hay ficha, no se puede colocar
 
-    ; llamar a checkAroundP2(posCursor, mBoard, dirLines)
+    ; Llamar a checkAroundP2(posCursor, mBoard, dirLines)
     mov rdi, r12
     mov rsi, r13
     mov rdx, r14
     call checkAroundP2
     cmp eax, 0
-    jle .return_state
+    jle .return_state   ; no hay vecinos, no se permite
 
-    ; insertar ficha según jugador
+    ; Insertar ficha según jugador
     cmp r15d, 1
     je .put_x
     mov byte [r13 + r12], STONE_O
@@ -605,11 +615,11 @@ insertStoneP2:
 
 .change_turn:
     mov eax, 3
-    sub eax, r15d
+    sub eax, r15d       ; cambia jugador: 3 - 1 = 2 o 3 - 2 = 1
     jmp .done
 
 .return_state:
-    mov eax, r15d
+    mov eax, r15d       ; no se pudo insertar, mantener turno
 
 .done:
     pop r15
@@ -620,6 +630,7 @@ insertStoneP2:
     mov rsp, rbp
     pop rbp
     ret
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Comprobar si la ficha introducida, en la posición (posCursor)
@@ -728,7 +739,10 @@ checkRowP2:
 ;EX 7
 global checkEndP2
 section .text
-
+mov rdi, r10
+mov rsi, r8
+mov rdx, r9
+mov ecx, ebx
 checkEndP2:
     push rbp
     mov rbp, rsp
@@ -919,100 +933,135 @@ printMessageP2:
 ; Parámetros de salida: 
 ; Ninguno
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;MODIFICAR STATES
+;MODIFICADO CHECKENDP2
+;MODIFICADO SHOWSTONEPOSP2
+
+global playP2
+
+section .text
+
 playP2:
-   push rbp
-   mov  rbp, rsp
-   ;guardar el estado de los registros que se modifican en esta 
-   ;subrutina y que no se utilizan para retornar valores.	
-   push rax
-   push rbx
-   push rcx
-   push rdx
-   push rsi
-   push rdi
-   push r8
-   push r9
-   push r10
-   push r11
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push rsi
+    push rdi
+    push rdx
+    push rcx
+    push r8
+    push r9
+    push r10
+    push r11
 
-   mov r8, rdi                ;(mBoard)
-   mov r9, rsi                ;(dirLines)
-   mov r10, 44                ;long  posCursor = 44; 
-   mov bx, 1                  ;short state = 1; // Estado del juego
-                              ;// 0: Se ha presionado ESC para salir 
-                              ;// 1: Juega el jugador 1.
-                              ;// 2: Juega el jugador 2.
-                              ;// 3: El jugador 1 ha hecho 5 en línea.
-                              ;// 4: El jugador 2 ha hecho 5 en línea.
-                              ;// 5: El tablero está lleno. Empate.
-   mov  r11w, bx              ;newState = state;                   
-   mov  di, bx
-   call printMessageP2        ;printMessageP2_C(state);
-   
-   playP2_while:
-   cmp bx, 1                  ;while (state == 1 
-   je  playP2_loop
-     cmp bx, 2                ;|| state ==2  ) {
-     jne playP2_end
-     playP2_loop:
-       mov  rdi, r10
-       call posCurBoardP2     ;posCurBoardP2_C(posCursor);
-       call getchP2           ;charac = getchP2_C();   
-       playP2_move:
-       cmp al, 'i'            ;if (charac >= 'i'  
-       jl  playP2_insert
-         cmp al, 'l'          ;&& charac <= 'l') {
-         jg playP2_insert
-           mov rdi, r10
-           mov sil, al
-           call moveCursorP2  ;posCursor = moveCursorP2_C(posCursor, charac);
-           mov r10, rax
-       jmp playP2_endwhile;}
-       playP2_insert:      
-       cmp al, ' '            ;if (charac == ' ' ) {
-       jne playP2_esc
-         mov rdi, r10
-         mov rsi, r8
-         mov rdx, r9
-         call checkAroundP2   ;neighbors  = checkAroundP2_C(posCursor, mBoard, dirLines);
-         cmp eax, 0           ;if (neighbors  > 0) {
-         jle playP2_noneighbours
-           mov  cx, bx
-           call insertStoneP2  ;newState = insertStoneP2_C(posCursor, mBoard, dirLines, state);
-           mov  r11w, ax
-           cmp bx, r11w       ;if(state != newState){ //new stone inserted
-           je  playP2_notinserted
-             call showStonePosP2;showStonePosP2_C(posCursor, mBoard);
-             call checkEndP2  ;state = checkEndP2_C(posCursor, mBoard, dirLines, state);
-             mov bx, ax
-           playP2_notinserted:;}
-           cmp bx, 2          ;if (state <= 2) 
-           jg  playP2_newstate
-             mov bx, r11w     ;state = newState;
-             playP2_newstate: ;}
-         playP2_noneighbours: ;}
-       jmp playP2_endwhile    
-       playP2_esc:
-       cmp al, 27             ;if (charac == 27) {
-       jne playP2_noesc
-         mov bx, 0           ;state = 0;
-       playP2_noesc:         ;} 
-     playP2_endwhile:        ;}
-     mov  di, bx
-     call printMessageP2     ;printMessageP2_C(state);  
-     jmp playP2_while 
-   playP2_end: 
-   ;restaurar el estado de los registros que se han guardado en la pila.
-   pop r10
-   pop r9
-   pop r8
-   pop rdi
-   pop rsi
-   pop rdx
-   pop rcx
-   pop rbx
-   pop rax
+    ; rdi = mBoard
+    ; rsi = dirLines
 
-   mov rsp, rbp
-   pop rbp
-   ret
+    ; Guardar punteros en registros
+    mov r8, rdi         ; r8 = mBoard
+    mov r9, rsi         ; r9 = dirLines
+
+    mov r10, 44         ; r10 = posCursor
+    mov r11d, 1         ; r11d = state
+
+playP2_loop:
+
+    ; Mostrar cursor
+    mov rdi, r10        ; posCursor
+    call posCurBoardP2
+
+    ; Obtener tecla
+    call getchP2
+    mov [charac], al
+    movzx eax, byte [charac]
+    cmp al, 27          ; ESC?
+    je playP2_end
+
+    cmp al, ' '
+    je playP2_space
+    ; Mover cursor
+    mov rdi, r10
+    mov sil, byte [charac]
+    call moveCursorP2
+    mov r10, rax
+    jmp playP2_loop
+
+playP2_space:
+    ; Verificar vecinos
+    mov rdi, r10        ; posCursor
+    mov rsi, r8         ; mBoard
+    mov rdx, r9         ; dirLines
+    call checkAroundP2
+    mov [neighbors], eax
+    cmp eax, 0
+    jle playP2_loop
+
+    ; Insertar piedra
+    mov rdi, r10        ; posCursor
+    mov rsi, r8         ; mBoard
+    mov rdx, r9         ; dirLines
+    mov ecx, r11d       ; state
+    call insertStoneP2
+    mov [newState], ax
+
+    ; Si no se insertó, continuar
+    cmp ax, r11w
+    je playP2_loop
+
+    ; Mostrar piedra
+    mov rdi, r10
+    mov rsi, r8
+    call showStonePosP2
+
+    ; Verificar si termina el juego
+    mov rdi, r10
+    mov rsi, r8
+    mov rdx, r9
+    mov ecx, r11d
+    call checkEndP2
+    mov r11d, eax        ; actualizar state
+
+    cmp r11d, 3
+    je playP2_win1
+    cmp r11d, 4
+    je playP2_win2
+    cmp r11d, 5
+    je playP2_draw
+
+    jmp playP2_loop
+
+playP2_win1:
+    mov al, '1'
+    call printchP2
+    jmp playP2_end
+
+playP2_win2:
+    mov al, '2'
+    call printchP2
+    jmp playP2_end
+
+playP2_draw:
+    mov al, 'D'
+    call printchP2
+    jmp playP2_end
+
+playP2_end:
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rcx
+    pop rdx
+    pop rdi
+    pop rsi
+    pop rbx
+    mov rsp, rbp
+    pop rbp
+    ret
+
+
+;adicionales
+section .bss
+charac:      resb 1       ; un byte para tecla pulsada
+newState:    resw 1       ; estado devuelto por insertStoneP2
+neighbors:   resd 1       ; número de vecinos de la posición
